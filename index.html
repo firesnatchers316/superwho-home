@@ -1255,5 +1255,75 @@
     });
   })();
   </script>
+<!-- SuperWho chat bubble. Published 2026-11-26 on Jim's OK.
+     Talks only to the public superwho-chat proxy; no keys in the page.
+     Sits above the existing bottom-right Request help button. -->
+<div id="sw-chat-root"></div>
+<style>
+  /* Extra bottom space so the footer is not hidden behind the raised chat button. */
+  body { padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
+  #sw-chat-btn{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom, 0px));width:58px;height:58px;border-radius:50%;border:0;
+    background:#5b3df5;color:#fff;font-size:26px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:9999}
+  #sw-chat-panel{position:fixed;right:16px;bottom:calc(150px + env(safe-area-inset-bottom, 0px));width:340px;max-width:calc(100vw - 32px);height:460px;
+    max-height:calc(100vh - 170px);background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);
+    display:none;flex-direction:column;overflow:hidden;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;z-index:9999}
+  #sw-chat-panel.open{display:flex}
+  #sw-chat-head{background:#5b3df5;color:#fff;padding:12px 14px;font-weight:600}
+  #sw-chat-log{flex:1;overflow-y:auto;padding:12px;background:#f7f7fb}
+  .sw-msg{margin:6px 0;padding:8px 11px;border-radius:12px;max-width:85%;white-space:pre-wrap;word-wrap:break-word}
+  .sw-bot{background:#fff;border:1px solid #e5e5ef}
+  .sw-me{background:#5b3df5;color:#fff;margin-left:auto}
+  #sw-chat-form{display:flex;border-top:1px solid #eee}
+  #sw-chat-input{flex:1;border:0;padding:12px;font:inherit;outline:none}
+  #sw-chat-send{border:0;background:#5b3df5;color:#fff;padding:0 16px;cursor:pointer;font-weight:600}
+  #sw-chat-note{font-size:11px;color:#777;padding:4px 12px 8px}
+</style>
+<script>
+(function () {
+  var API = "https://superwho-chat.fly.dev/api/chat"; // later: https://chat.superwho.io/api/chat
+  var KEY = "sw_chat_session";
+  var sid = sessionStorage.getItem(KEY);
+  if (!sid) {
+    sid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/[^A-Za-z0-9_-]/g, "");
+    sessionStorage.setItem(KEY, sid);
+  }
+  var root = document.getElementById("sw-chat-root");
+  root.innerHTML =
+    '<button id="sw-chat-btn" aria-label="Chat with SuperWho">&#128172;</button>' +
+    '<div id="sw-chat-panel" role="dialog" aria-label="SuperWho assistant">' +
+      '<div id="sw-chat-head">SuperWho Assistant</div>' +
+      '<div id="sw-chat-log" aria-live="polite"></div>' +
+      '<div id="sw-chat-note">Please don\'t share passwords or payment details in chat.</div>' +
+      '<form id="sw-chat-form"><input id="sw-chat-input" maxlength="1000" placeholder="Ask about Smart Pages..." autocomplete="off">' +
+      '<button id="sw-chat-send" type="submit">Send</button></form>' +
+    '</div>';
+  var panel = document.getElementById("sw-chat-panel"), log = document.getElementById("sw-chat-log");
+  var form = document.getElementById("sw-chat-form"), input = document.getElementById("sw-chat-input");
+  var busy = false;
+  function add(text, who) {
+    var d = document.createElement("div");
+    d.className = "sw-msg " + (who === "me" ? "sw-me" : "sw-bot");
+    d.textContent = text; // textContent: never render HTML from the model
+    log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+  }
+  document.getElementById("sw-chat-btn").onclick = function () {
+    panel.classList.toggle("open");
+    if (panel.classList.contains("open") && !log.childNodes.length) add("Hi! I'm the SuperWho assistant. Ask me anything about SuperWho Smart Pages.", "bot");
+    if (panel.classList.contains("open")) input.focus();
+  };
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    var msg = input.value.trim();
+    if (!msg || busy) return;
+    busy = true; input.value = ""; add(msg, "me");
+    var pending = add("…", "bot");
+    fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg, sessionId: sid }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (j) { pending.textContent = j.reply || "Sorry, something went wrong. Please try again."; })
+      .catch(function () { pending.textContent = "Sorry, I couldn't connect. Please try again later."; })
+      .then(function () { busy = false; });
+  };
+})();
+</script>
 </body>
 </html>
