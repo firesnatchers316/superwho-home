@@ -1344,21 +1344,25 @@
 <style>
   body { padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px)); }
   #sw-chat-btn{
-    position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom, 0px));
-    width:60px;height:60px;padding:0;border:0;border-radius:50%;
+    /* 80px hit target covers the rings; 60px core stays visually at right:16px / bottom:80px */
+    position:fixed;right:6px;bottom:calc(72px + env(safe-area-inset-bottom, 0px));
+    width:80px;height:80px;padding:0;border:0;border-radius:50%;
     background:transparent;cursor:pointer;z-index:9999;overflow:visible;
+    -webkit-appearance:none;appearance:none;touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;
   }
+  #sw-chat-btn *{pointer-events:none}
   #sw-chat-btn .sw-orb{
-    position:relative;display:block;width:60px;height:60px;
+    position:relative;display:block;width:80px;height:80px;
   }
   #sw-chat-btn .sw-ring{
     position:absolute;left:50%;top:50%;width:80px;height:80px;margin:-40px 0 0 -40px;
-    pointer-events:none;overflow:visible;
+    overflow:visible;
   }
   #sw-chat-btn .sw-ring-a{animation:sw-spin 16s linear infinite}
   #sw-chat-btn .sw-ring-b{animation:sw-spin-rev 18s linear infinite}
   #sw-chat-btn .sw-orb-core{
-    position:absolute;inset:0;border-radius:50%;
+    position:absolute;left:10px;top:10px;width:60px;height:60px;border-radius:50%;
     background:radial-gradient(circle at 34% 28%, #FFF6C2 0%, #F0C040 44%, #E09010 78%, #8A4E00 100%);
     box-shadow:0 0 0 1px rgba(240,192,64,.45), 0 8px 22px rgba(0,0,0,.45), 0 0 16px rgba(240,192,64,.42);
     display:grid;place-items:center;overflow:hidden;
@@ -1366,14 +1370,30 @@
   }
   #sw-chat-btn .sw-orb-core::before{
     content:"";position:absolute;top:6px;left:11px;width:22px;height:13px;border-radius:50%;
-    background:rgba(255,255,255,.42);filter:blur(2px);pointer-events:none;
+    background:rgba(255,255,255,.42);filter:blur(2px);
   }
   #sw-chat-btn.is-thinking .sw-orb-core,
   #sw-chat-btn.is-speaking .sw-orb-core{
     animation:sw-active-glow 2.8s ease-in-out infinite;
   }
+  #sw-chat-btn .sw-brain{
+    transform-origin:center center;
+    animation:sw-brain-idle 8s ease-in-out infinite;
+  }
+  #sw-chat-btn.is-thinking .sw-brain,
+  #sw-chat-btn.is-speaking .sw-brain{
+    animation:sw-brain-active 3.2s ease-in-out infinite;
+  }
   @keyframes sw-spin{to{transform:rotate(360deg)}}
   @keyframes sw-spin-rev{to{transform:rotate(-360deg)}}
+  @keyframes sw-brain-idle{
+    0%,100%{transform:translateY(1px) scale(1);filter:brightness(1)}
+    50%{transform:translateY(-1.5px) scale(1.03);filter:brightness(1.12)}
+  }
+  @keyframes sw-brain-active{
+    0%,100%{transform:translateY(1px) scale(1);filter:brightness(1.05)}
+    50%{transform:translateY(-2px) scale(1.05);filter:brightness(1.2)}
+  }
   @keyframes sw-idle-glow{
     0%,100%{box-shadow:0 0 0 1px rgba(240,192,64,.4), 0 8px 22px rgba(0,0,0,.45), 0 0 14px rgba(240,192,64,.35)}
     50%{box-shadow:0 0 0 1px rgba(255,226,122,.6), 0 8px 22px rgba(0,0,0,.45), 0 0 22px rgba(240,192,64,.58)}
@@ -1385,7 +1405,8 @@
   @media (prefers-reduced-motion: reduce){
     #sw-chat-btn .sw-ring-a,
     #sw-chat-btn .sw-ring-b,
-    #sw-chat-btn .sw-orb-core{animation:none}
+    #sw-chat-btn .sw-orb-core,
+    #sw-chat-btn .sw-brain{animation:none;filter:none;transform:none}
     #sw-chat-btn .sw-orb-core{
       box-shadow:0 0 0 1px rgba(240,192,64,.5), 0 8px 22px rgba(0,0,0,.45), 0 0 16px rgba(240,192,64,.42);
     }
@@ -1394,8 +1415,8 @@
       box-shadow:0 0 0 2px rgba(255,230,140,.7), 0 8px 22px rgba(0,0,0,.45), 0 0 26px rgba(240,192,64,.7);
     }
   }
-  #sw-chat-panel{position:fixed;right:16px;bottom:calc(158px + env(safe-area-inset-bottom, 0px));width:340px;max-width:calc(100vw - 32px);height:460px;
-    max-height:calc(100vh - 178px);background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);
+  #sw-chat-panel{position:fixed;right:16px;bottom:calc(162px + env(safe-area-inset-bottom, 0px));width:340px;max-width:calc(100vw - 32px);height:460px;
+    max-height:calc(100vh - 182px);background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);
     display:none;flex-direction:column;overflow:hidden;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;z-index:9999}
   #sw-chat-panel.open{display:flex}
   #sw-chat-head{background:linear-gradient(180deg,#F6D25A,#E09010);color:#1A1200;padding:10px 10px 10px 14px;font-weight:700;display:flex;align-items:center;gap:8px}
@@ -1431,10 +1452,11 @@
   var KEY = "sw_chat_session";
   var VOICE_KEY = "sw_chat_voice";
   var WELCOME = "Hi, welcome to SuperWho! I'm here to help you see how a Smart Page and your own virtual team could take things off your plate. What are you working on right now?";
-  var sid = sessionStorage.getItem(KEY);
+  var sid = null;
+  try { sid = sessionStorage.getItem(KEY); } catch (err) {}
   if (!sid) {
     sid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/[^A-Za-z0-9_-]/g, "");
-    sessionStorage.setItem(KEY, sid);
+    try { sessionStorage.setItem(KEY, sid); } catch (err) {}
   }
   var btn = document.getElementById("sw-chat-btn");
   var panel = document.getElementById("sw-chat-panel"), log = document.getElementById("sw-chat-log");
@@ -1452,7 +1474,8 @@
   function canSpeak() {
     try { return !!(window.speechSynthesis && window.SpeechSynthesisUtterance); } catch (err) { return false; }
   }
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var SR = null;
+  try { SR = window.SpeechRecognition || window.webkitSpeechRecognition; } catch (err) {}
 
   function setVoice(on, persist) {
     voiceOn = !!on;
@@ -1544,7 +1567,8 @@
   if (!SR) {
     micBtn.hidden = true;
   } else {
-    rec = new SR();
+    try { rec = new SR(); } catch (err) { rec = null; }
+    if (!rec) { micBtn.hidden = true; } else {
     rec.continuous = false;
     rec.interimResults = true;
     rec.lang = "en-US";
@@ -1573,6 +1597,7 @@
       micBtn.setAttribute("aria-label", "Stop listening");
       try { rec.start(); } catch (err) { recOpen = false; resetMicUi(); }
     };
+    }
   }
 
   voiceBtn.onclick = function () {
@@ -1580,7 +1605,7 @@
     setVoice(!voiceOn);
   };
 
-  btn.onclick = function () {
+  function togglePanel() {
     var opening = !panel.classList.contains("open");
     panel.classList.toggle("open");
     if (opening) {
@@ -1588,12 +1613,20 @@
         add(WELCOME, "bot");
         speak(WELCOME);
       }
-      input.focus();
+      // Don't auto-focus on touch phones: the iOS keyboard can cover or shove this
+      // bottom-anchored panel, so a tap looks like it did nothing.
+      var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+      if (!coarse) input.focus();
     } else {
       stopListening({ silent: true });
       cancelSpeech();
     }
-  };
+  }
+  btn.addEventListener("click", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    togglePanel();
+  });
 
   form.onsubmit = function (e) {
     e.preventDefault();
