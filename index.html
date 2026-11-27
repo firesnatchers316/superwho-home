@@ -1255,27 +1255,139 @@
     });
   })();
   </script>
-<!-- SuperWho chat bubble. Published 2026-11-26 on Jim's OK.
+<!-- SuperWho chat bubble. Published 2026-11-26 on Jim's OK; gold brain orb added the same evening.
      Talks only to the public superwho-chat proxy; no keys in the page.
      Sits above the existing bottom-right Request help button. -->
-<div id="sw-chat-root"></div>
+<div id="sw-chat-root">
+  <button type="button" id="sw-chat-btn" aria-label="Chat with SuperWho">
+    <span class="sw-orb" aria-hidden="true">
+      <svg class="sw-ring sw-ring-a" viewBox="0 0 80 80" width="80" height="80">
+        <defs>
+          <linearGradient id="sw-ring-grad-a" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#FFF4B8" stop-opacity="0.15"/>
+            <stop offset="35%" stop-color="#FFE27A" stop-opacity="0.95"/>
+            <stop offset="65%" stop-color="#E09010" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#FFF4B8" stop-opacity="0.9"/>
+          </linearGradient>
+        </defs>
+        <ellipse cx="40" cy="40" rx="35" ry="15" transform="rotate(-20 40 40)" fill="none" stroke="url(#sw-ring-grad-a)" stroke-width="1.35"/>
+      </svg>
+      <svg class="sw-ring sw-ring-b" viewBox="0 0 80 80" width="80" height="80">
+        <defs>
+          <linearGradient id="sw-ring-grad-b" x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#E09010" stop-opacity="0.15"/>
+            <stop offset="40%" stop-color="#F0C040" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#FFF4B8" stop-opacity="0.25"/>
+          </linearGradient>
+        </defs>
+        <ellipse cx="40" cy="40" rx="31" ry="17" transform="rotate(32 40 40)" fill="none" stroke="url(#sw-ring-grad-b)" stroke-width="1.15" stroke-dasharray="2.5 5.5"/>
+      </svg>
+      <span class="sw-orb-core">
+        <svg class="sw-brain" viewBox="0 0 64 64" width="34" height="34">
+          <defs>
+            <linearGradient id="sw-brain-fill" x1="0.25" y1="0" x2="0.8" y2="1">
+              <stop offset="0%" stop-color="#FFFDF2"/>
+              <stop offset="55%" stop-color="#FFF0B8"/>
+              <stop offset="100%" stop-color="#F6D25A"/>
+            </linearGradient>
+            <filter id="sw-brain-bloom" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="0.9" result="g"/>
+              <feMerge>
+                <feMergeNode in="g"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <g filter="url(#sw-brain-bloom)" stroke="#2A1800" stroke-linejoin="round" stroke-linecap="round">
+            <!-- Two distinct hemispheres so the brain reads at 60px -->
+            <path fill="url(#sw-brain-fill)" stroke-width="1.9"
+              d="M31 16.5c-7.4-3-16.2-1.2-18 7-1.2 5.4.8 10 4 12.8-3 2.6-3.2 8 .8 11 3.6 2.6 9.2 2.8 12.6.2.8-2.2 1-7.4 1-18.4V16.5z"/>
+            <path fill="url(#sw-brain-fill)" stroke-width="1.9"
+              d="M33 16.5c7.4-3 16.2-1.2 18 7 1.2 5.4-.8 10-4 12.8 3 2.6 3.2 8-.8 11-3.6 2.6-9.2 2.8-12.6.2-.8-2.2-1-7.4-1-18.4V16.5z"/>
+            <g fill="none" stroke="#2A1800" stroke-width="1.7" opacity="0.8">
+              <path d="M30.6 24c-5.4-1-9.2.6-12.2 3.4"/>
+              <path d="M30.4 33c-5.2.4-9 2.2-11.4 5.2"/>
+              <path d="M33.4 24c5.4-1 9.2.6 12.2 3.4"/>
+              <path d="M33.6 33c5.2.4 9 2.2 11.4 5.2"/>
+            </g>
+          </g>
+        </svg>
+      </span>
+    </span>
+  </button>
+  <div id="sw-chat-panel" role="dialog" aria-label="SuperWho assistant">
+    <div id="sw-chat-head">SuperWho Assistant</div>
+    <div id="sw-chat-log" aria-live="polite"></div>
+    <div id="sw-chat-note">Please don't share passwords or payment details in chat.</div>
+    <form id="sw-chat-form"><input id="sw-chat-input" maxlength="1000" placeholder="Ask about Smart Pages..." autocomplete="off">
+    <button id="sw-chat-send" type="submit">Send</button></form>
+  </div>
+</div>
 <style>
-  /* Extra bottom space so the footer is not hidden behind the raised chat button. */
-  body { padding-bottom: calc(168px + env(safe-area-inset-bottom, 0px)); }
-  #sw-chat-btn{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom, 0px));width:58px;height:58px;border-radius:50%;border:0;
-    background:#5b3df5;color:#fff;font-size:26px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:9999}
-  #sw-chat-panel{position:fixed;right:16px;bottom:calc(150px + env(safe-area-inset-bottom, 0px));width:340px;max-width:calc(100vw - 32px);height:460px;
-    max-height:calc(100vh - 170px);background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);
+  body { padding-bottom: calc(172px + env(safe-area-inset-bottom, 0px)); }
+  #sw-chat-btn{
+    position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom, 0px));
+    width:60px;height:60px;padding:0;border:0;border-radius:50%;
+    background:transparent;cursor:pointer;z-index:9999;overflow:visible;
+  }
+  #sw-chat-btn .sw-orb{
+    position:relative;display:block;width:60px;height:60px;
+  }
+  #sw-chat-btn .sw-ring{
+    position:absolute;left:50%;top:50%;width:80px;height:80px;margin:-40px 0 0 -40px;
+    pointer-events:none;overflow:visible;
+  }
+  #sw-chat-btn .sw-ring-a{animation:sw-spin 16s linear infinite}
+  #sw-chat-btn .sw-ring-b{animation:sw-spin-rev 18s linear infinite}
+  #sw-chat-btn .sw-orb-core{
+    position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%, #FFF6C2 0%, #F0C040 44%, #E09010 78%, #8A4E00 100%);
+    box-shadow:0 0 0 1px rgba(240,192,64,.45), 0 8px 22px rgba(0,0,0,.45), 0 0 16px rgba(240,192,64,.42);
+    display:grid;place-items:center;overflow:hidden;
+    animation:sw-idle-glow 5.5s ease-in-out infinite;
+  }
+  #sw-chat-btn .sw-orb-core::before{
+    content:"";position:absolute;top:6px;left:11px;width:22px;height:13px;border-radius:50%;
+    background:rgba(255,255,255,.42);filter:blur(2px);pointer-events:none;
+  }
+  #sw-chat-btn.is-thinking .sw-orb-core,
+  #sw-chat-btn.is-speaking .sw-orb-core{
+    animation:sw-active-glow 2.8s ease-in-out infinite;
+  }
+  @keyframes sw-spin{to{transform:rotate(360deg)}}
+  @keyframes sw-spin-rev{to{transform:rotate(-360deg)}}
+  @keyframes sw-idle-glow{
+    0%,100%{box-shadow:0 0 0 1px rgba(240,192,64,.4), 0 8px 22px rgba(0,0,0,.45), 0 0 14px rgba(240,192,64,.35)}
+    50%{box-shadow:0 0 0 1px rgba(255,226,122,.6), 0 8px 22px rgba(0,0,0,.45), 0 0 22px rgba(240,192,64,.58)}
+  }
+  @keyframes sw-active-glow{
+    0%,100%{box-shadow:0 0 0 1px rgba(255,230,140,.55), 0 8px 22px rgba(0,0,0,.45), 0 0 16px rgba(240,192,64,.5), 0 0 34px rgba(240,192,64,.32)}
+    50%{box-shadow:0 0 0 2px rgba(255,240,180,.8), 0 8px 22px rgba(0,0,0,.45), 0 0 28px rgba(255,210,80,.85), 0 0 52px rgba(240,192,64,.52)}
+  }
+  @media (prefers-reduced-motion: reduce){
+    #sw-chat-btn .sw-ring-a,
+    #sw-chat-btn .sw-ring-b,
+    #sw-chat-btn .sw-orb-core{animation:none}
+    #sw-chat-btn .sw-orb-core{
+      box-shadow:0 0 0 1px rgba(240,192,64,.5), 0 8px 22px rgba(0,0,0,.45), 0 0 16px rgba(240,192,64,.42);
+    }
+    #sw-chat-btn.is-thinking .sw-orb-core,
+    #sw-chat-btn.is-speaking .sw-orb-core{
+      box-shadow:0 0 0 2px rgba(255,230,140,.7), 0 8px 22px rgba(0,0,0,.45), 0 0 26px rgba(240,192,64,.7);
+    }
+  }
+  #sw-chat-panel{position:fixed;right:16px;bottom:calc(158px + env(safe-area-inset-bottom, 0px));width:340px;max-width:calc(100vw - 32px);height:460px;
+    max-height:calc(100vh - 178px);background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);
     display:none;flex-direction:column;overflow:hidden;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;z-index:9999}
   #sw-chat-panel.open{display:flex}
-  #sw-chat-head{background:#5b3df5;color:#fff;padding:12px 14px;font-weight:600}
+  #sw-chat-head{background:linear-gradient(180deg,#F6D25A,#E09010);color:#1A1200;padding:12px 14px;font-weight:700}
   #sw-chat-log{flex:1;overflow-y:auto;padding:12px;background:#f7f7fb}
   .sw-msg{margin:6px 0;padding:8px 11px;border-radius:12px;max-width:85%;white-space:pre-wrap;word-wrap:break-word}
   .sw-bot{background:#fff;border:1px solid #e5e5ef}
-  .sw-me{background:#5b3df5;color:#fff;margin-left:auto}
+  .sw-me{background:linear-gradient(180deg,#F6D25A,#E09010);color:#1A1200;margin-left:auto}
   #sw-chat-form{display:flex;border-top:1px solid #eee}
   #sw-chat-input{flex:1;border:0;padding:12px;font:inherit;outline:none}
-  #sw-chat-send{border:0;background:#5b3df5;color:#fff;padding:0 16px;cursor:pointer;font-weight:600}
+  #sw-chat-send{border:0;background:linear-gradient(180deg,#F6D25A,#E09010);color:#1A1200;padding:0 16px;cursor:pointer;font-weight:700}
   #sw-chat-note{font-size:11px;color:#777;padding:4px 12px 8px}
 </style>
 <script>
@@ -1287,26 +1399,28 @@
     sid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/[^A-Za-z0-9_-]/g, "");
     sessionStorage.setItem(KEY, sid);
   }
-  var root = document.getElementById("sw-chat-root");
-  root.innerHTML =
-    '<button id="sw-chat-btn" aria-label="Chat with SuperWho">&#128172;</button>' +
-    '<div id="sw-chat-panel" role="dialog" aria-label="SuperWho assistant">' +
-      '<div id="sw-chat-head">SuperWho Assistant</div>' +
-      '<div id="sw-chat-log" aria-live="polite"></div>' +
-      '<div id="sw-chat-note">Please don\'t share passwords or payment details in chat.</div>' +
-      '<form id="sw-chat-form"><input id="sw-chat-input" maxlength="1000" placeholder="Ask about Smart Pages..." autocomplete="off">' +
-      '<button id="sw-chat-send" type="submit">Send</button></form>' +
-    '</div>';
+  var btn = document.getElementById("sw-chat-btn");
   var panel = document.getElementById("sw-chat-panel"), log = document.getElementById("sw-chat-log");
   var form = document.getElementById("sw-chat-form"), input = document.getElementById("sw-chat-input");
   var busy = false;
+  function syncOrb() {
+    var speaking = false;
+    try {
+      speaking = !!(window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending));
+    } catch (err) {}
+    btn.classList.toggle("is-thinking", !!busy);
+    btn.classList.toggle("is-speaking", !!(speaking && !busy));
+    if (busy) btn.setAttribute("aria-busy", "true");
+    else btn.removeAttribute("aria-busy");
+  }
+  setInterval(syncOrb, 300);
   function add(text, who) {
     var d = document.createElement("div");
     d.className = "sw-msg " + (who === "me" ? "sw-me" : "sw-bot");
     d.textContent = text; // textContent: never render HTML from the model
     log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
   }
-  document.getElementById("sw-chat-btn").onclick = function () {
+  btn.onclick = function () {
     panel.classList.toggle("open");
     if (panel.classList.contains("open") && !log.childNodes.length) add("Hi! I'm the SuperWho assistant. Ask me anything about SuperWho Smart Pages.", "bot");
     if (panel.classList.contains("open")) input.focus();
@@ -1315,13 +1429,13 @@
     e.preventDefault();
     var msg = input.value.trim();
     if (!msg || busy) return;
-    busy = true; input.value = ""; add(msg, "me");
+    busy = true; syncOrb(); input.value = ""; add(msg, "me");
     var pending = add("…", "bot");
     fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: msg, sessionId: sid }) })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (j) { pending.textContent = j.reply || "Sorry, something went wrong. Please try again."; })
       .catch(function () { pending.textContent = "Sorry, I couldn't connect. Please try again later."; })
-      .then(function () { busy = false; });
+      .then(function () { busy = false; syncOrb(); });
   };
 })();
 </script>
