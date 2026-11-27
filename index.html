@@ -1454,6 +1454,8 @@
   var TTS_API = "https://superwho-chat.fly.dev/api/tts";
   var KEY = "sw_chat_session";
   var VOICE_KEY = "sw_chat_voice";
+  var VOICE_ARM_KEY = "sw_voice_ab";
+  var VOICE_ARMS = ["jessica", "eric"]; // 50/50 test arms; fallback voice is server-only
   var WELCOME = "Hi, welcome to SuperWho! I'm here to help you see how a Smart Page and your own virtual team could take things off your plate. What are you working on right now?";
   var sid = null;
   try { sid = sessionStorage.getItem(KEY); } catch (err) {}
@@ -1461,6 +1463,27 @@
     sid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2)).replace(/[^A-Za-z0-9_-]/g, "");
     try { sessionStorage.setItem(KEY, sid); } catch (err) {}
   }
+
+  function getVoiceArm() {
+    var arm = null;
+    try { arm = localStorage.getItem(VOICE_ARM_KEY); } catch (err) {}
+    if (arm === "jessica" || arm === "eric") return arm;
+    var pick = 0;
+    try {
+      if (crypto.getRandomValues) pick = crypto.getRandomValues(new Uint8Array(1))[0] % 2;
+      else pick = Math.random() < 0.5 ? 0 : 1;
+    } catch (err) { pick = Math.random() < 0.5 ? 0 : 1; }
+    arm = VOICE_ARMS[pick];
+    try { localStorage.setItem(VOICE_ARM_KEY, arm); } catch (err) {}
+    return arm;
+  }
+
+  function rememberVoiceArm(arm) {
+    if (arm === "jessica" || arm === "eric") {
+      try { localStorage.setItem(VOICE_ARM_KEY, arm); } catch (err) {}
+    }
+  }
+
   var btn = document.getElementById("sw-chat-btn");
   var panel = document.getElementById("sw-chat-panel"), log = document.getElementById("sw-chat-log");
   var form = document.getElementById("sw-chat-form"), input = document.getElementById("sw-chat-input");
@@ -1668,9 +1691,10 @@
     fetch(TTS_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text, sessionId: sid })
+      body: JSON.stringify({ text: text, sessionId: sid, voice: getVoiceArm() })
     }).then(function (r) {
       if (!r.ok) throw new Error("tts");
+      rememberVoiceArm(r.headers.get("X-SW-Voice-Arm"));
       return r.blob();
     }).then(function (blob) {
       if (gen !== speakGen || !voiceOn || !panel.classList.contains("open")) return;
