@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#08111E">
+  <title>SuperWho voice test</title>
+  <style>
+    :root { --bg:#08111E; --card:#101F35; --ink:#F4F7FB; --muted:#9FB2C9; --gold:#F0C040; --gold-deep:#E09010; --gold-ink:#1A1200; --line:rgba(255,255,255,.12); }
+    * { box-sizing: border-box; }
+    html, body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+    body { min-height:100vh; padding:20px 16px 40px; background:radial-gradient(800px 360px at 85% -8%, rgba(240,192,64,.16), transparent 58%), var(--bg); }
+    main { max-width:520px; margin:0 auto; }
+    h1 { font-size:22px; margin:0 0 6px; letter-spacing:-.02em; }
+    .kicker { color:var(--gold); font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; }
+    .note { color:var(--muted); font-size:14px; margin:0 0 18px; }
+    .sentence { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin:0 0 18px; }
+    .sentence p { margin:0; font-size:15.5px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+    .card h2 { margin:0 0 8px; font-size:17px; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    button { appearance:none; border:0; border-radius:999px; padding:11px 16px; font:inherit; font-weight:800; font-size:14px; cursor:pointer; }
+    .gold { background:linear-gradient(180deg,#F6D25A,var(--gold-deep)); color:var(--gold-ink); }
+    .ghost { background:rgba(255,255,255,.08); color:var(--ink); border:1px solid var(--line); }
+    button:disabled { opacity:.55; cursor:default; }
+    .status { color:var(--muted); font-size:13px; margin-top:10px; min-height:1.4em; white-space:pre-wrap; }
+    .picked { color:var(--gold); font-weight:600; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="kicker">Internal test · not linked from the site</div>
+    <h1>SuperWho voice test</h1>
+    <p class="note">This page is a side-by-side listen of the free browser voice (the one used on superwho.io) and open-source Kokoro-82M. Kokoro is not wired into the live chat bubble yet. The first live Kokoro play downloads the model to this phone (one time), so the saved samples are there if you want to hear it right away.</p>
+    <div class="sentence">
+      <p id="sentence">Hi, welcome to SuperWho! I'm here to help you see how a Smart Page and your own virtual team could take things off your plate. What are you working on right now?</p>
+    </div>
+
+    <div class="card">
+      <h2>1. This browser’s best free voice</h2>
+      <p class="note" style="margin-bottom:0">Uses the same picker as the live chat: prefers Natural, Neural, Enhanced, Premium, Siri, Google US English, Samantha (Enhanced), and Microsoft Online (Natural) voices, then a local en-US voice. Rate 0.96, pitch 1.0, one sentence at a time.</p>
+      <div class="row">
+        <button type="button" class="gold" id="btn-browser">Play browser voice</button>
+        <button type="button" class="ghost" id="btn-browser-stop">Stop</button>
+      </div>
+      <div class="status" id="st-browser">Looking up voices…</div>
+    </div>
+
+    <div class="card">
+      <h2>2. Kokoro (open source, 82M)</h2>
+      <p class="note" style="margin-bottom:0">Warm female is <b>Heart</b> (af_heart). Male is <b>Michael</b> (am_michael). Saved samples were rendered on our machine. Live generation runs in this browser (WebGPU if it can, otherwise WASM) and is not sent to our servers.</p>
+      <div class="row">
+        <button type="button" class="gold" id="btn-heart-saved">Play Heart sample</button>
+        <button type="button" class="gold" id="btn-michael-saved">Play Michael sample</button>
+      </div>
+      <div class="row">
+        <button type="button" class="ghost" id="btn-heart-live">Generate Heart live</button>
+        <button type="button" class="ghost" id="btn-michael-live">Generate Michael live</button>
+        <button type="button" class="ghost" id="btn-kokoro-stop">Stop</button>
+      </div>
+      <div class="status" id="st-kokoro">Saved samples are ready. Live generation will load the model on first use.</div>
+    </div>
+  </main>
+  <script src="samples.js"></script>
+  <script>
+  (function () {
+    var SENTENCE = document.getElementById("sentence").textContent.trim();
+    var stB = document.getElementById("st-browser");
+    var stK = document.getElementById("st-kokoro");
+    var picked = null;
+    var audioEl = null;
+
+    function scoreVoice(v) {
+      var name = ((v && v.name) || "") + " " + ((v && v.voiceURI) || "");
+      var lang = ((v && v.lang) || "").toLowerCase();
+      if (!(/^en([-_]|$)/.test(lang) || /english/i.test(name))) return -1;
+      var s = 0;
+      if (/natural/i.test(name)) s += 100;
+      if (/neural/i.test(name)) s += 90;
+      if (/\benhanced\b/i.test(name)) s += 80;
+      if (/premium/i.test(name)) s += 80;
+      if (/\bsiri\b/i.test(name)) s += 85;
+      if (/google us english/i.test(name)) s += 70;
+      if (/samantha\s*\(enhanced\)/i.test(name) || /samantha.*enhanced/i.test(name)) s += 75;
+      if (/online\s*\(natural\)/i.test(name)) s += 100;
+      if (/microsoft/i.test(name) && /\b(aria|jenny|guy)\b/i.test(name)) s += 25;
+      if (v.localService && /^en-us/i.test(lang)) s += 15;
+      if (/^en-us/i.test(lang)) s += 10;
+      if (/compact|eloquence|espeak|robot/i.test(name)) s -= 50;
+      return s;
+    }
+    function pickVoice(voices) {
+      var ranked = [];
+      for (var i = 0; i < voices.length; i++) {
+        var sc = scoreVoice(voices[i]);
+        if (sc >= 0) ranked.push({ v: voices[i], s: sc });
+      }
+      ranked.sort(function (a, b) { return b.s - a.s; });
+      if (ranked.length && ranked[0].s >= 70) return ranked[0].v;
+      for (i = 0; i < ranked.length; i++) {
+        if (ranked[i].v.localService && /^en-us/i.test(ranked[i].v.lang || "")) return ranked[i].v;
+      }
+      for (i = 0; i < ranked.length; i++) {
+        if (/^en-us/i.test(ranked[i].v.lang || "")) return ranked[i].v;
+      }
+      return ranked.length ? ranked[0].v : null;
+    }
+    function whenVoicesReady(cb) {
+      var called = false;
+      function finish(force) {
+        var vs = [];
+        try { vs = speechSynthesis.getVoices() || []; } catch (err) {}
+        if (!vs.length && !force) return false;
+        if (called) return true;
+        called = true; cb(vs); return true;
+      }
+      try { speechSynthesis.getVoices(); } catch (err) {}
+      if (finish(false)) return;
+      try {
+        if (speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", function () { finish(false); });
+        else speechSynthesis.onvoiceschanged = function () { finish(false); };
+      } catch (err) {}
+      var n = 0, t = setInterval(function () {
+        n += 1;
+        if (finish(false) || n >= 20) { clearInterval(t); if (!called) finish(true); }
+      }, 100);
+    }
+    function splitSentences(text) {
+      var parts = [], buf = "";
+      for (var i = 0; i < text.length; i++) {
+        buf += text[i];
+        if ((/[.!?]/.test(text[i]) && (i === text.length - 1 || /\s/.test(text[i + 1]))) || text[i] === "\n") {
+          var x = buf.replace(/\s+/g, " ").trim();
+          if (x) parts.push(x);
+          buf = "";
+        }
+      }
+      var x = buf.replace(/\s+/g, " ").trim();
+      if (x) parts.push(x);
+      return parts.length ? parts : [text];
+    }
+    function describe(v) {
+      if (!v) return "No English voice found on this device.";
+      return v.name + (v.lang ? " (" + v.lang + ")" : "") + (v.localService ? ", local" : ", remote");
+    }
+    whenVoicesReady(function (voices) {
+      picked = pickVoice(voices);
+      var names = [];
+      for (var i = 0; i < voices.length; i++) names.push(voices[i].name + " [" + (voices[i].lang || "") + "]");
+      stB.innerHTML = voices.length
+        ? 'This device has ' + voices.length + ' voices. I would pick: <span class="picked">' + describe(picked) + "</span>."
+        : "This browser has not exposed any voices yet. Try the play button anyway.";
+      stB.dataset.voices = names.join(" | ");
+      stB.dataset.picked = picked ? picked.name : "";
+    });
+
+    var speakGen = 0;
+    document.getElementById("btn-browser").onclick = function () {
+      if (!window.speechSynthesis) { stB.textContent = "This browser has no speechSynthesis."; return; }
+      speakGen += 1;
+      var gen = speakGen;
+      try { speechSynthesis.cancel(); } catch (err) {}
+      stopKokoro();
+      whenVoicesReady(function (voices) {
+        if (gen !== speakGen) return;
+        picked = pickVoice(voices);
+        stB.innerHTML = "Playing with <span class='picked'>" + describe(picked) + "</span>.";
+        var q = splitSentences(SENTENCE);
+        function next() {
+          if (gen !== speakGen || !q.length) return;
+          var u = new SpeechSynthesisUtterance(q.shift());
+          if (picked) u.voice = picked;
+          u.lang = (picked && picked.lang) || "en-US";
+          u.rate = 0.96; u.pitch = 1.0;
+          u.onend = next; u.onerror = next;
+          speechSynthesis.speak(u);
+        }
+        setTimeout(next, 60);
+      });
+    };
+    document.getElementById("btn-browser-stop").onclick = function () {
+      speakGen += 1;
+      try { speechSynthesis.cancel(); } catch (err) {}
+    };
+
+    function stopKokoro() {
+      if (audioEl) { try { audioEl.pause(); audioEl.src = ""; } catch (err) {} audioEl = null; }
+    }
+    function playUrl(url, label) {
+      stopKokoro();
+      try { speechSynthesis.cancel(); } catch (err) {}
+      speakGen += 1;
+      audioEl = new Audio(url);
+      audioEl.play().then(function () { stK.textContent = "Playing " + label + "…"; })
+        .catch(function (e) { stK.textContent = "Could not play: " + (e && e.message || e); });
+      audioEl.onended = function () { stK.textContent = "Finished " + label + "."; };
+    }
+    document.getElementById("btn-heart-saved").onclick = function () {
+      var s = window.SW_KOKORO_SAMPLES && window.SW_KOKORO_SAMPLES.af_heart;
+      if (!s) { stK.textContent = "Saved Heart sample is missing."; return; }
+      playUrl(s, "Heart (saved sample)");
+    };
+    document.getElementById("btn-michael-saved").onclick = function () {
+      var s = window.SW_KOKORO_SAMPLES && window.SW_KOKORO_SAMPLES.am_michael;
+      if (!s) { stK.textContent = "Saved Michael sample is missing."; return; }
+      playUrl(s, "Michael (saved sample)");
+    };
+    document.getElementById("btn-kokoro-stop").onclick = function () { stopKokoro(); stK.textContent = "Stopped."; };
+
+    var ttsPromise = null;
+    var ttsInfo = null;
+    function loadKokoro() {
+      if (ttsPromise) return ttsPromise;
+      stK.textContent = "Loading Kokoro-82M in this browser. The first time can take a bit…";
+      ttsPromise = import("https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm").then(function (mod) {
+        var KokoroTTS = mod.KokoroTTS;
+        var t0 = performance.now();
+        var hasGpu = !!(navigator.gpu);
+        var tryGpu = hasGpu ? KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "fp32", device: "webgpu" }) : Promise.reject(new Error("no webgpu"));
+        return tryGpu.then(function (tts) {
+          ttsInfo = { device: "webgpu", dtype: "fp32", loadMs: Math.round(performance.now() - t0) };
+          return tts;
+        }).catch(function () {
+          var t1 = performance.now();
+          return KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "q8", device: "wasm" }).then(function (tts) {
+            ttsInfo = { device: "wasm", dtype: "q8", loadMs: Math.round(performance.now() - t1) };
+            return tts;
+          });
+        });
+      }).then(function (tts) {
+        stK.textContent = "Model ready on " + ttsInfo.device + " (" + ttsInfo.dtype + ") in " + ttsInfo.loadMs + " ms.";
+        return tts;
+      }).catch(function (e) {
+        ttsPromise = null;
+        stK.textContent = "Could not load Kokoro in this browser: " + (e && e.message || e) + ". Use the saved samples instead.";
+        throw e;
+      });
+      return ttsPromise;
+    }
+    function generateLive(voice, label) {
+      loadKokoro().then(function (tts) {
+        stK.textContent = "Generating " + label + "…";
+        var t0 = performance.now();
+        return tts.generate(SENTENCE, { voice: voice }).then(function (audio) {
+          var ms = Math.round(performance.now() - t0);
+          var url;
+          if (audio && audio.toBlob) {
+            return audio.toBlob().then ? audio.toBlob().then(function (b) { return { ms: ms, url: URL.createObjectURL(b) }; })
+              : { ms: ms, url: URL.createObjectURL(audio.toBlob()) };
+          }
+          if (audio && audio.toWav) {
+            var wav = audio.toWav();
+            url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
+            return { ms: ms, url: url };
+          }
+          throw new Error("Unexpected audio object");
+        }).then(function (res) {
+          stK.textContent = "Generated " + label + " in " + res.ms + " ms after a " + ttsInfo.loadMs + " ms model load on " + ttsInfo.device + ".";
+          playUrl(res.url, label + " (live)");
+        });
+      }).catch(function () {});
+    }
+    document.getElementById("btn-heart-live").onclick = function () { generateLive("af_heart", "Heart"); };
+    document.getElementById("btn-michael-live").onclick = function () { generateLive("am_michael", "Michael"); };
+  })();
+  </script>
+</body>
+</html>
