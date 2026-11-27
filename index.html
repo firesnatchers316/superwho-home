@@ -1451,6 +1451,7 @@
 <script>
 (function () {
   var API = "https://superwho-chat.fly.dev/api/chat"; // later: https://chat.superwho.io/api/chat
+  var TTS_API = "https://superwho-chat.fly.dev/api/tts";
   var KEY = "sw_chat_session";
   var VOICE_KEY = "sw_chat_voice";
   var WELCOME = "Hi, welcome to SuperWho! I'm here to help you see how a Smart Page and your own virtual team could take things off your plate. What are you working on right now?";
@@ -1492,10 +1493,30 @@
   var speakGen = 0;
   var speakQueue = [];
   var pickedVoice = null;
+  var ttsAudio = null;
+  var ttsUrl = null;
+  var ttsPlaying = false;
+
+  function stopTtsAudio() {
+    ttsPlaying = false;
+    if (ttsAudio) {
+      try {
+        ttsAudio.onended = null;
+        ttsAudio.onerror = null;
+        ttsAudio.onplay = null;
+        ttsAudio.pause();
+        ttsAudio.removeAttribute("src");
+        ttsAudio.load();
+      } catch (err) {}
+      ttsAudio = null;
+    }
+    if (ttsUrl) { try { URL.revokeObjectURL(ttsUrl); } catch (err) {} ttsUrl = null; }
+  }
 
   function cancelSpeech() {
     speakGen += 1;
     speakQueue = [];
+    stopTtsAudio();
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (err) {}
     syncOrb();
   }
@@ -1629,14 +1650,9 @@
     } catch (err) { speakNext(gen); }
   }
 
-  function speak(text) {
-    if (!voiceOn || !text || !panel.classList.contains("open") || !canSpeak()) return;
-    var cleaned = stripForSpeech(text);
-    if (!cleaned) return;
-    speakGen += 1;
-    var gen = speakGen;
+  function fallbackDevice(cleaned, gen) {
+    if (gen !== speakGen || !voiceOn || !panel.classList.contains("open") || !canSpeak()) { syncOrb(); return; }
     speakQueue = splitSentences(cleaned);
-    try { speechSynthesis.cancel(); } catch (err) {}
     whenVoicesReady(function (voices) {
       if (gen !== speakGen) return;
       pickedVoice = pickVoice(voices);
@@ -1647,11 +1663,55 @@
     });
   }
 
+  function speakEleven(cleaned, gen) {
+    var text = cleaned.length > 600 ? cleaned.slice(0, 600) : cleaned;
+    fetch(TTS_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text, sessionId: sid })
+    }).then(function (r) {
+      if (!r.ok) throw new Error("tts");
+      return r.blob();
+    }).then(function (blob) {
+      if (gen !== speakGen || !voiceOn || !panel.classList.contains("open")) return;
+      if (!blob || blob.size < 64) throw new Error("empty");
+      var typ = (blob.type || "").toLowerCase();
+      if (typ && typ.indexOf("audio") !== 0 && typ.indexOf("octet-stream") === -1) throw new Error("not-audio");
+      stopTtsAudio();
+      ttsUrl = URL.createObjectURL(blob);
+      ttsAudio = new Audio(ttsUrl);
+      ttsAudio.onplay = function () { ttsPlaying = true; syncOrb(); };
+      ttsAudio.onended = function () { ttsPlaying = false; syncOrb(); };
+      ttsAudio.onerror = function () { ttsPlaying = false; syncOrb(); fallbackDevice(cleaned, gen); };
+      var p = ttsAudio.play();
+      if (p && p.then) {
+        p.then(function () { ttsPlaying = true; syncOrb(); }).catch(function () { fallbackDevice(cleaned, gen); });
+      } else {
+        ttsPlaying = true; syncOrb();
+      }
+    }).catch(function () {
+      if (gen !== speakGen) return;
+      fallbackDevice(cleaned, gen);
+    });
+  }
+
+  function speak(text) {
+    if (!voiceOn || !text || !panel.classList.contains("open")) return;
+    var cleaned = stripForSpeech(text);
+    if (!cleaned) return;
+    speakGen += 1;
+    var gen = speakGen;
+    speakQueue = [];
+    stopTtsAudio();
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (err) {}
+    speakEleven(cleaned, gen);
+  }
+
   function syncOrb() {
     var speaking = false;
     try {
-      speaking = !!(window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending));
-    } catch (err) {}
+      speaking = !!ttsPlaying || !!(window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending));
+    } catch (err) { speaking = !!ttsPlaying; }
     btn.classList.toggle("is-thinking", !!busy);
     btn.classList.toggle("is-speaking", !!(speaking && !busy));
     if (busy) btn.setAttribute("aria-busy", "true");
@@ -1773,6 +1833,5 @@
   };
 })();
 </script>
-
 </body>
 </html>
