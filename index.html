@@ -1487,25 +1487,162 @@
     if (!voiceOn) cancelSpeech();
   }
 
+  var speakGen = 0;
+  var speakQueue = [];
+  var pickedVoice = null;
+
   function cancelSpeech() {
+    speakGen += 1;
+    speakQueue = [];
     try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (err) {}
     syncOrb();
   }
 
+  function stripForSpeech(text) {
+    var s = String(text || "");
+    s = s.replace(/```[\s\S]*?```/g, " ");
+    s = s.replace(/`([^`]+)`/g, "$1");
+    s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
+    s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+    s = s.replace(/^#{1,6}\s+/gm, "");
+    s = s.replace(/(\*\*|__)([\s\S]*?)\1/g, "$2");
+    s = s.replace(/(\*|_)([\s\S]*?)\1/g, "$2");
+    s = s.replace(/~~([\s\S]*?)~~/g, "$1");
+    s = s.replace(/^\s*[-*+]\s+/gm, "");
+    s = s.replace(/^\s*\d+\.\s+/gm, "");
+    try {
+      s = s.replace(/\p{Extended_Pictographic}/gu, "");
+      s = s.replace(/\p{Emoji_Presentation}/gu, "");
+    } catch (err) {
+      s = s.replace(/[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, "");
+      s = s.replace(/[\u2600-\u27BF]/g, "");
+    }
+    s = s.replace(/[\uFE0F\u200D]/g, "");
+    return s.replace(/\s+/g, " ").trim();
+  }
+
+  function splitSentences(text) {
+    var parts = [], buf = "";
+    for (var i = 0; i < text.length; i++) {
+      buf += text[i];
+      var end = /[.!?]/.test(text[i]) && (i === text.length - 1 || /\s/.test(text[i + 1]));
+      if (end || text[i] === "\n") {
+        var t = buf.replace(/\s+/g, " ").trim();
+        if (t) parts.push(t);
+        buf = "";
+      }
+    }
+    var t = buf.replace(/\s+/g, " ").trim();
+    if (t) parts.push(t);
+    return parts.length ? parts : [text];
+  }
+
+  function scoreVoice(v) {
+    var name = ((v && v.name) || "") + " " + ((v && v.voiceURI) || "");
+    var lang = ((v && v.lang) || "").toLowerCase();
+    var isEn = /^en([-_]|$)/.test(lang) || /english/i.test(name);
+    if (!isEn) return -1;
+    var s = 0;
+    if (/natural/i.test(name)) s += 100;
+    if (/neural/i.test(name)) s += 90;
+    if (/\benhanced\b/i.test(name)) s += 80;
+    if (/premium/i.test(name)) s += 80;
+    if (/\bsiri\b/i.test(name)) s += 85;
+    if (/google us english/i.test(name)) s += 70;
+    if (/samantha\s*\(enhanced\)/i.test(name) || /samantha.*enhanced/i.test(name)) s += 75;
+    if (/online\s*\(natural\)/i.test(name)) s += 100;
+    if (/microsoft/i.test(name) && /\b(aria|jenny|guy)\b/i.test(name)) s += 25;
+    if (v.localService && /^en-us/i.test(lang)) s += 15;
+    if (/^en-us/i.test(lang)) s += 10;
+    if (/compact|eloquence|espeak|robot/i.test(name)) s -= 50;
+    return s;
+  }
+
+  function pickVoice(voices) {
+    var list = voices || [];
+    var ranked = [];
+    for (var i = 0; i < list.length; i++) {
+      var sc = scoreVoice(list[i]);
+      if (sc >= 0) ranked.push({ v: list[i], s: sc });
+    }
+    ranked.sort(function (a, b) { return b.s - a.s; });
+    if (ranked.length && ranked[0].s >= 70) return ranked[0].v;
+    for (i = 0; i < ranked.length; i++) {
+      if (ranked[i].v.localService && /^en-us/i.test(ranked[i].v.lang || "")) return ranked[i].v;
+    }
+    for (i = 0; i < ranked.length; i++) {
+      if (/^en-us/i.test(ranked[i].v.lang || "")) return ranked[i].v;
+    }
+    return ranked.length ? ranked[0].v : null;
+  }
+
+  function whenVoicesReady(cb) {
+    var called = false;
+    function finish(force) {
+      var vs = [];
+      try { vs = speechSynthesis.getVoices() || []; } catch (err) {}
+      if (!vs.length && !force) return false;
+      if (called) return true;
+      called = true;
+      cb(vs);
+      return true;
+    }
+    try { speechSynthesis.getVoices(); } catch (err) {}
+    if (finish(false)) return;
+    try {
+      if (speechSynthesis.addEventListener) {
+        speechSynthesis.addEventListener("voiceschanged", function () { finish(false); });
+      } else {
+        speechSynthesis.onvoiceschanged = function () { finish(false); };
+      }
+    } catch (err) {}
+    var n = 0;
+    var timer = setInterval(function () {
+      n += 1;
+      if (finish(false) || n >= 20) {
+        clearInterval(timer);
+        if (!called) finish(true);
+      }
+    }, 100);
+  }
+
+  function speakNext(gen) {
+    if (gen !== speakGen || !voiceOn || !panel.classList.contains("open")) {
+      syncOrb();
+      return;
+    }
+    if (!speakQueue.length) { syncOrb(); return; }
+    var sentence = speakQueue.shift();
+    try {
+      var u = new SpeechSynthesisUtterance(sentence);
+      if (pickedVoice) u.voice = pickedVoice;
+      u.lang = (pickedVoice && pickedVoice.lang) || "en-US";
+      u.rate = 0.96;
+      u.pitch = 1.0;
+      u.onstart = syncOrb;
+      u.onend = function () { speakNext(gen); };
+      u.onerror = function () { speakNext(gen); };
+      speechSynthesis.speak(u);
+      syncOrb();
+    } catch (err) { speakNext(gen); }
+  }
+
   function speak(text) {
     if (!voiceOn || !text || !panel.classList.contains("open") || !canSpeak()) return;
-    try {
-      speechSynthesis.cancel();
-      var u = new SpeechSynthesisUtterance(text);
-      u.onstart = syncOrb;
-      u.onend = syncOrb;
-      u.onerror = syncOrb;
+    var cleaned = stripForSpeech(text);
+    if (!cleaned) return;
+    speakGen += 1;
+    var gen = speakGen;
+    speakQueue = splitSentences(cleaned);
+    try { speechSynthesis.cancel(); } catch (err) {}
+    whenVoicesReady(function (voices) {
+      if (gen !== speakGen) return;
+      pickedVoice = pickVoice(voices);
       setTimeout(function () {
-        if (!voiceOn || !panel.classList.contains("open")) return;
-        speechSynthesis.speak(u);
-        syncOrb();
+        if (gen !== speakGen) return;
+        speakNext(gen);
       }, 60);
-    } catch (err) {}
+    });
   }
 
   function syncOrb() {
